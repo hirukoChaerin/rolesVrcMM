@@ -22,13 +22,15 @@ public class IconFollower : UdonSharpBehaviour
     private float nextUpdateTime;
     private const float UPDATE_INTERVAL = 0.1f;
     
+    // Control de inicialización
+    private bool isInitialized = false;
+    private bool needsInitialPosition = false;
+    private Sprite pendingSprite;
+    
     void Start()
     {
-        if (cachedTransform == null)
-            cachedTransform = transform;
-
-        if (localPlayer == null)
-            localPlayer = Networking.LocalPlayer;
+        cachedTransform = transform;
+        localPlayer = Networking.LocalPlayer;
         
         if (iconSpriteRenderer == null)
             iconSpriteRenderer = GetComponentInChildren<SpriteRenderer>();
@@ -40,12 +42,33 @@ public class IconFollower : UdonSharpBehaviour
         }
         
         // Establecer escala fija
-        cachedTransform.localScale = Vector3.one * ICON_SCALE;
+        if (cachedTransform != null)
+            cachedTransform.localScale = Vector3.one * ICON_SCALE;
+            
+        // Si tenemos un sprite pendiente, aplicarlo
+        if (pendingSprite != null && iconSpriteRenderer != null)
+        {
+            iconSpriteRenderer.sprite = pendingSprite;
+            iconSpriteRenderer.color = Color.white;
+            pendingSprite = null;
+        }
+        
+        isInitialized = true;
     }
     
     void Update()
     {
-        if (!IsValidTarget() || Time.time < nextUpdateTime) 
+        if (!IsValidTarget()) 
+            return;
+        
+        // Si necesitamos establecer la posición inicial y ya estamos inicializados
+        if (needsInitialPosition && isInitialized)
+        {
+            SetInitialPosition();
+            needsInitialPosition = false;
+        }
+        
+        if (Time.time < nextUpdateTime)
             return;
             
         nextUpdateTime = Time.time + UPDATE_INTERVAL;
@@ -58,62 +81,119 @@ public class IconFollower : UdonSharpBehaviour
     public void Initialize(VRCPlayerApi player, Sprite roleSprite)
     {
         targetPlayer = player;
+        pendingSprite = roleSprite;
         
-        // Posicionar inmediatamente en la posición correcta del jugador
-        if (targetPlayer != null && targetPlayer.IsValid())
+        // Si ya estamos inicializados (Start ya se ejecutó)
+        if (isInitialized)
         {
-            VRCPlayerApi.TrackingData headData = targetPlayer.GetTrackingData(VRCPlayerApi.TrackingDataType.Head);
-            Vector3 initialPosition = headData.position + (Vector3.up * HEIGHT_OFFSET);
+            ApplySprite();
+            SetInitialPosition();
+        }
+        else
+        {
+            // Marcar que necesitamos establecer la posición inicial cuando estemos listos
+            needsInitialPosition = true;
+        }
+    }
+    
+    private void ApplySprite()
+    {
+        if (iconSpriteRenderer == null)
+            iconSpriteRenderer = GetComponentInChildren<SpriteRenderer>();
             
-            // Asegurar que no esté en 0,0,0
+        if (iconSpriteRenderer != null)
+        {
+            iconSpriteRenderer.sortingOrder = 100;
+            
+            if (pendingSprite != null)
+            {
+                iconSpriteRenderer.sprite = pendingSprite;
+                iconSpriteRenderer.color = Color.white;
+                pendingSprite = null;
+            }
+            
+            iconSpriteRenderer.enabled = true;
+        }
+    }
+    
+    private void SetInitialPosition()
+    {
+        if (cachedTransform == null)
+            cachedTransform = transform;
+            
+        if (targetPlayer != null && targetPlayer.IsValid() && cachedTransform != null)
+        {
+            // Intentar obtener la posición de la cabeza
+            VRCPlayerApi.TrackingData headData = targetPlayer.GetTrackingData(VRCPlayerApi.TrackingDataType.Head);
+            Vector3 initialPosition = headData.position;
+            
+            // Si la posición de la cabeza es válida
+            if (initialPosition.magnitude > 0.1f)
+            {
+                initialPosition += Vector3.up * HEIGHT_OFFSET;
+            }
+            else
+            {
+                // Usar la posición del jugador como respaldo
+                initialPosition = targetPlayer.GetPosition() + Vector3.up * (HEIGHT_OFFSET + 1.8f);
+            }
+            
+            // Solo establecer la posición si es válida
             if (initialPosition.magnitude > 0.1f)
             {
                 cachedTransform.position = initialPosition;
             }
-            else
-            {
-                // Si por alguna razón está en 0,0,0, usar la posición del jugador
-                cachedTransform.position = targetPlayer.GetPosition() + (Vector3.up * (HEIGHT_OFFSET + 1.5f));
-            }
-        }
-        
-        if (iconSpriteRenderer != null && roleSprite != null)
-        {
-            iconSpriteRenderer.sprite = roleSprite;
-            iconSpriteRenderer.color = Color.white;
-            iconSpriteRenderer.enabled = true;
+            
+            // Aplicar el sprite y habilitar
+            ApplySprite();
         }
     }
     
     private void UpdatePosition()
     {
+        if (!IsValidTarget() || cachedTransform == null) return;
+        
         VRCPlayerApi.TrackingData headData = targetPlayer.GetTrackingData(VRCPlayerApi.TrackingDataType.Head);
         Vector3 targetPosition = headData.position + (Vector3.up * HEIGHT_OFFSET);
         
-        cachedTransform.position = Vector3.Lerp(
-            cachedTransform.position,
-            targetPosition,
-            smoothSpeed * Time.deltaTime
-        );
+        // Solo actualizar si la posición es válida
+        if (targetPosition.magnitude > 0.1f)
+        {
+            cachedTransform.position = Vector3.Lerp(
+                cachedTransform.position,
+                targetPosition,
+                smoothSpeed * Time.deltaTime
+            );
+        }
     }
     
     private void UpdateVisibility()
     {
-        if (localPlayer == null || iconSpriteRenderer == null) return;
+        if (localPlayer == null)
+            localPlayer = Networking.LocalPlayer;
+            
+        if (localPlayer == null || iconSpriteRenderer == null || !iconSpriteRenderer.enabled) 
+            return;
         
         float distance = Vector3.Distance(localPlayer.GetPosition(), cachedTransform.position);
-        iconSpriteRenderer.enabled = distance <= maxDistance;
+        bool shouldBeVisible = distance <= maxDistance;
+        
+        if (iconSpriteRenderer.enabled != shouldBeVisible)
+            iconSpriteRenderer.enabled = shouldBeVisible;
     }
     
     private void UpdateRotation()
     {
-        if (localPlayer == null) return;
+        if (localPlayer == null)
+            localPlayer = Networking.LocalPlayer;
+            
+        if (localPlayer == null || cachedTransform == null) return;
         
         // Billboard effect - siempre mira a la cámara
         VRCPlayerApi.TrackingData localHeadData = localPlayer.GetTrackingData(VRCPlayerApi.TrackingDataType.Head);
         Vector3 lookDirection = localHeadData.position - cachedTransform.position;
         
-        if (lookDirection != Vector3.zero)
+        if (lookDirection.magnitude > 0.01f)
             cachedTransform.rotation = Quaternion.LookRotation(lookDirection);
     }
     
