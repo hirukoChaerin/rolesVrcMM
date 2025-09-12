@@ -253,7 +253,7 @@ public class UserIconManager : UdonSharpBehaviour
         IconFollower follower = icon.GetComponent<IconFollower>();
         if (follower != null)
         {
-            follower.Initialize(player, roleSprite);
+            follower.SetupIcon(player, roleSprite);
         }
         else
         {
