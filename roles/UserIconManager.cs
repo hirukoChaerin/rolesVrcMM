@@ -229,7 +229,7 @@ public class UserIconManager : UdonSharpBehaviour
     
     private void CreateIconForPlayer(VRCPlayerApi player, string roleName)
     {
-        if (iconPrefab == null) return;
+        if (iconPrefab == null || player == null || !player.IsValid()) return;
         
         // Obtener sprite del rol
         Sprite roleSprite = GetRoleSprite(roleName);
@@ -241,6 +241,12 @@ public class UserIconManager : UdonSharpBehaviour
         
         // Crear icono
         GameObject icon = Instantiate(iconPrefab);
+        if (icon == null)
+        {
+            DebugLog($"Error al instanciar el prefab del icono");
+            return;
+        }
+        
         icon.name = $"Icon_{player.displayName}_{roleName}";
         
         // Configurar el icono
@@ -248,6 +254,12 @@ public class UserIconManager : UdonSharpBehaviour
         if (follower != null)
         {
             follower.Initialize(player, roleSprite);
+        }
+        else
+        {
+            DebugLog($"No se encontró componente IconFollower en el prefab");
+            Destroy(icon);
+            return;
         }
         
         // Registrar icono activo

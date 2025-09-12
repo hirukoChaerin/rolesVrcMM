@@ -24,8 +24,11 @@ public class IconFollower : UdonSharpBehaviour
     
     void Start()
     {
-        cachedTransform = transform;
-        localPlayer = Networking.LocalPlayer;
+        if (cachedTransform == null)
+            cachedTransform = transform;
+
+        if (localPlayer == null)
+            localPlayer = Networking.LocalPlayer;
         
         if (iconSpriteRenderer == null)
             iconSpriteRenderer = GetComponentInChildren<SpriteRenderer>();
