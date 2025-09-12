@@ -10,10 +10,8 @@ public class IconFollower : UdonSharpBehaviour
     
     [Header("Configuración")]
     [SerializeField] private float maxDistance = 50f;
-    
-    // Configuración fija
-    private const float ICON_SCALE = 0.3f;
-    private const float HEIGHT_OFFSET = 1f; // 1 metro sobre la cabeza
+    [SerializeField] private float iconScale = 0.3f;
+    [SerializeField] private float heightOffset = 1f;
     
     private VRCPlayerApi targetPlayer;
     private VRCPlayerApi localPlayer;
@@ -36,7 +34,7 @@ public class IconFollower : UdonSharpBehaviour
         }
         
         // Establecer escala fija
-        cachedTransform.localScale = Vector3.one * ICON_SCALE;
+        cachedTransform.localScale = Vector3.one * iconScale;
     }
     
     void Update()
@@ -56,7 +54,7 @@ public class IconFollower : UdonSharpBehaviour
         
         // POSICIÓN INSTANTÁNEA - Sin ningún delay
         VRCPlayerApi.TrackingData headData = targetPlayer.GetTrackingData(VRCPlayerApi.TrackingDataType.Head);
-        Vector3 targetPos = headData.position + (Vector3.up * HEIGHT_OFFSET);
+        Vector3 targetPos = headData.position + (Vector3.up * heightOffset);
         
         // Solo actualizar si la posición es válida
         if (targetPos.magnitude > 0.1f)
@@ -119,13 +117,13 @@ public class IconFollower : UdonSharpBehaviour
         }
         
         // Establecer escala
-        cachedTransform.localScale = Vector3.one * ICON_SCALE;
+        cachedTransform.localScale = Vector3.one * iconScale;
         
         // POSICIONAR INMEDIATAMENTE
         if (targetPlayer != null && targetPlayer.IsValid())
         {
             VRCPlayerApi.TrackingData headData = targetPlayer.GetTrackingData(VRCPlayerApi.TrackingDataType.Head);
-            Vector3 initialPos = headData.position + (Vector3.up * HEIGHT_OFFSET);
+            Vector3 initialPos = headData.position + (Vector3.up * heightOffset);
             
             // Si la posición es válida, usarla
             if (initialPos.magnitude > 0.1f)
@@ -135,7 +133,7 @@ public class IconFollower : UdonSharpBehaviour
             else
             {
                 // Respaldo con posición del jugador
-                cachedTransform.position = targetPlayer.GetPosition() + (Vector3.up * (HEIGHT_OFFSET + 1.8f));
+                cachedTransform.position = targetPlayer.GetPosition() + (Vector3.up * (heightOffset + 1.8f));
             }
             
             Debug.Log($"[IconFollower] Posición inicial establecida en {cachedTransform.position}");
