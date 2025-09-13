@@ -12,7 +12,6 @@ public class IconFollower : UdonSharpBehaviour
     [SerializeField] private float maxDistance = 50f;
     [SerializeField] private float iconScale = 0.3f;
     [SerializeField] private float heightOffset = 1f;
-    [SerializeField] private bool billboardEffect = true; // Siempre mirar a la cámara
     [SerializeField] private bool lockYAxis = true; // Mantener vertical
 
     private VRCPlayerApi targetPlayer;
@@ -54,9 +53,8 @@ public class IconFollower : UdonSharpBehaviour
             return;
         }
 
-        // POSICIÓN INSTANTÁNEA - Sin ningún delay
-        VRCPlayerApi.TrackingData headData = targetPlayer.GetTrackingData(VRCPlayerApi.TrackingDataType.Head);
-        Vector3 targetPos = headData.position + (Vector3.up * heightOffset);
+        // Posicionar el icono sobre la cabeza del jugador
+        Vector3 targetPos = getTargetPlayerPosition(targetPlayer);
 
         // Solo actualizar si la posición es válida
         if (targetPos.magnitude > 0.1f)
@@ -64,39 +62,8 @@ public class IconFollower : UdonSharpBehaviour
             cachedTransform.position = targetPos;
         }
 
-        // BILLBOARD EFFECT - Siempre de frente al jugador local
-        if (billboardEffect)
-        {
-            if (localPlayer == null)
-                localPlayer = Networking.LocalPlayer;
 
-            if (localPlayer != null)
-            {
-                // Obtener la posición de la cámara del jugador local
-                VRCPlayerApi.TrackingData localHeadData = localPlayer.GetTrackingData(VRCPlayerApi.TrackingDataType.Head);
-                Quaternion playerHeadRotation = localHeadData.rotation;
-                // El icono debe mirar hacia la cámara
-                Vector3 lookDirection = cachedTransform.position - localHeadData.position;
-
-                // Si lockYAxis está activado, mantener el icono vertical
-                if (lockYAxis)
-                {
-                    lookDirection.y = 0;
-
-                    Vector3 euler = playerHeadRotation.eulerAngles;
-                    euler.x = 0; // Anula la inclinación adelante/atrás
-                    euler.z = 0; // Anula la inclinación lateral
-                    cachedTransform.rotation = Quaternion.Euler(euler);
-                }
-
-                // Solo rotar si hay una dirección válida
-                if (lookDirection.magnitude > 0.01f)
-                {
-                    // Rotar para mirar hacia la cámara
-                    cachedTransform.rotation = Quaternion.LookRotation(lookDirection);
-                }
-            }
-        }
+        playerLocalRotation(localPlayer);
 
         // Visibilidad - Solo cada 15 frames para optimizar
         visibilityCheckCounter++;
@@ -135,6 +102,11 @@ public class IconFollower : UdonSharpBehaviour
         {
             if (roleSprite != null)
             {
+                iconSpriteRenderer.sprite = roleSprite;
+                iconSpriteRenderer.color = Color.white;
+                Debug.LogError($"[DEBUG] Sprite assigned: {iconSpriteRenderer.sprite.name}");
+
+                // Voltear sprite si es el jugador local
                 if (targetPlayer == localPlayer)
                 {
                     iconSpriteRenderer.flipX = true;
@@ -143,9 +115,6 @@ public class IconFollower : UdonSharpBehaviour
                 {
                     iconSpriteRenderer.flipX = false;
                 }
-                iconSpriteRenderer.sprite = roleSprite;
-                iconSpriteRenderer.color = Color.white;
-                Debug.LogError($"[DEBUG] Sprite assigned: {iconSpriteRenderer.sprite.name}");
             }
             else
             {
@@ -165,8 +134,7 @@ public class IconFollower : UdonSharpBehaviour
         // POSICIONAR INMEDIATAMENTE
         if (targetPlayer != null && targetPlayer.IsValid())
         {
-            VRCPlayerApi.TrackingData headData = targetPlayer.GetTrackingData(VRCPlayerApi.TrackingDataType.Head);
-            Vector3 initialPos = headData.position + (Vector3.up * heightOffset);
+            Vector3 initialPos = getTargetPlayerPosition(targetPlayer);
 
             // Si la posición es válida, usarla
             if (initialPos.magnitude > 0.1f)
@@ -181,47 +149,50 @@ public class IconFollower : UdonSharpBehaviour
                 Debug.LogError($"[DEBUG] Position set to PLAYER: {cachedTransform.position}");
             }
 
-            // ROTACIÓN INICIAL - Mirar hacia la cámara del jugador local
-            if (billboardEffect && localPlayer != null)
-            {
-                VRCPlayerApi.TrackingData localHeadData = localPlayer.GetTrackingData(VRCPlayerApi.TrackingDataType.Head);
-                Quaternion playerHeadRotation = localHeadData.rotation;
-
-                Vector3 lookDirection = cachedTransform.position - localHeadData.position;
-
-                if (lockYAxis)
-                {
-                    lookDirection.y = 0;
-
-                    Vector3 euler = playerHeadRotation.eulerAngles;
-                    euler.x = 0; // Anula la inclinación adelante/atrás
-                    euler.z = 0; // Anula la inclinación lateral
-                    cachedTransform.rotation = Quaternion.Euler(euler);
-                }
-
-                if (lookDirection.magnitude > 0.01f)
-                {
-                    cachedTransform.rotation = Quaternion.LookRotation(lookDirection);
-                }
-            }
+            playerLocalRotation(localPlayer);
 
             Debug.Log($"[IconFollower] Posición inicial establecida en {cachedTransform.position}");
         }
 
         // Activar el seguimiento
         isActive = true;
-
-        // DEBUG FINAL
-        /* Debug.LogError($"[DEBUG FINAL] Icon Setup Complete:");
-        Debug.LogError($"  - GameObject: {gameObject.name}");
-        Debug.LogError($"  - Position: {cachedTransform.position}");
-        Debug.LogError($"  - Scale: {cachedTransform.localScale}");
-        Debug.LogError($"  - Active: {isActive}");
-        Debug.LogError($"  - Sprite: {iconSpriteRenderer.sprite.name}");
-        Debug.LogError($"  - Sprite Enabled: {iconSpriteRenderer.enabled}");
-        Debug.LogError($"  - Sprite Color: {iconSpriteRenderer.color}"); */
-
         Debug.Log($"[IconFollower] Icon activado para {player.displayName}");
+    }
+
+    private Vector3 getTargetPlayerPosition(VRCPlayerApi targetPlayer)
+    {
+        VRCPlayerApi.TrackingData headData = targetPlayer.GetTrackingData(VRCPlayerApi.TrackingDataType.Head);
+        Vector3 targetPos = headData.position + (Vector3.up * heightOffset);
+
+        return targetPos;
+    }
+
+    private void playerLocalRotation(VRCPlayerApi localPlayer)
+    {
+        if (localPlayer != null && localPlayer.IsValid())
+        {
+            VRCPlayerApi.TrackingData localHeadData = localPlayer.GetTrackingData(VRCPlayerApi.TrackingDataType.Head);
+            Quaternion playerHeadRotation = localHeadData.rotation;
+            // El icono debe mirar hacia la cámara
+            Vector3 lookDirection = cachedTransform.position - localHeadData.position;
+
+            // Si lockYAxis está activado, mantener el icono vertical
+            if (lockYAxis)
+            {
+                lookDirection.y = 0;
+
+                Vector3 euler = playerHeadRotation.eulerAngles;
+                euler.x = 0; // Anula la inclinación adelante/atrás
+                euler.z = 0; // Anula la inclinación lateral
+                cachedTransform.rotation = Quaternion.Euler(euler);
+            }
+            else if (lookDirection.magnitude > 0.01f) {
+               // Solo rotar si hay una dirección válida
+               // Rotar para mirar hacia la cámara
+                cachedTransform.rotation = Quaternion.LookRotation(lookDirection);
+            }
+
+        }
     }
 
     public bool IsActive()
