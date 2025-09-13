@@ -74,14 +74,19 @@ public class IconFollower : UdonSharpBehaviour
             {
                 // Obtener la posición de la cámara del jugador local
                 VRCPlayerApi.TrackingData localHeadData = localPlayer.GetTrackingData(VRCPlayerApi.TrackingDataType.Head);
-
+                Quaternion playerHeadRotation = localHeadData.rotation;
                 // El icono debe mirar hacia la cámara
-                Vector3 lookDirection = localHeadData.position - cachedTransform.position;
+                Vector3 lookDirection = cachedTransform.position - localHeadData.position;
 
                 // Si lockYAxis está activado, mantener el icono vertical
                 if (lockYAxis)
                 {
                     lookDirection.y = 0;
+
+                    Vector3 euler = playerHeadRotation.eulerAngles;
+                    euler.x = 0; // Anula la inclinación adelante/atrás
+                    euler.z = 0; // Anula la inclinación lateral
+                    cachedTransform.rotation = Quaternion.Euler(euler);
                 }
 
                 // Solo rotar si hay una dirección válida
@@ -132,13 +137,13 @@ public class IconFollower : UdonSharpBehaviour
             {
                 if (targetPlayer == localPlayer)
                 {
-                    iconSpriteRenderer.flipX = false;
+                    iconSpriteRenderer.flipX = true;
                 }
                 else
                 {
-                    iconSpriteRenderer.flipX = true;
+                    iconSpriteRenderer.flipX = false;
                 }
-                    iconSpriteRenderer.sprite = roleSprite;
+                iconSpriteRenderer.sprite = roleSprite;
                 iconSpriteRenderer.color = Color.white;
                 Debug.LogError($"[DEBUG] Sprite assigned: {iconSpriteRenderer.sprite.name}");
             }
@@ -180,11 +185,18 @@ public class IconFollower : UdonSharpBehaviour
             if (billboardEffect && localPlayer != null)
             {
                 VRCPlayerApi.TrackingData localHeadData = localPlayer.GetTrackingData(VRCPlayerApi.TrackingDataType.Head);
-                Vector3 lookDirection = localHeadData.position - cachedTransform.position;
+                Quaternion playerHeadRotation = localHeadData.rotation;
+
+                Vector3 lookDirection = cachedTransform.position - localHeadData.position;
 
                 if (lockYAxis)
                 {
                     lookDirection.y = 0;
+
+                    Vector3 euler = playerHeadRotation.eulerAngles;
+                    euler.x = 0; // Anula la inclinación adelante/atrás
+                    euler.z = 0; // Anula la inclinación lateral
+                    cachedTransform.rotation = Quaternion.Euler(euler);
                 }
 
                 if (lookDirection.magnitude > 0.01f)
