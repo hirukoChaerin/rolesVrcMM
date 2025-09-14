@@ -93,10 +93,6 @@ public class IconFollower : UdonSharpBehaviour
         if (iconSpriteRenderer == null)
             iconSpriteRenderer = GetComponentInChildren<SpriteRenderer>();
 
-        // DEBUG: Verificar sprite
-        Debug.LogError($"[DEBUG] SpriteRenderer found: {iconSpriteRenderer != null}");
-        Debug.LogError($"[DEBUG] RoleSprite provided: {roleSprite != null}, Name: {(roleSprite != null ? roleSprite.name : "NULL")}");
-
         // Configurar sprite
         if (iconSpriteRenderer != null)
         {
@@ -104,7 +100,6 @@ public class IconFollower : UdonSharpBehaviour
             {
                 iconSpriteRenderer.sprite = roleSprite;
                 iconSpriteRenderer.color = Color.white;
-                Debug.LogError($"[DEBUG] Sprite assigned: {iconSpriteRenderer.sprite.name}");
 
                 // Voltear sprite si es el jugador local
                 if (targetPlayer == localPlayer)
@@ -118,18 +113,15 @@ public class IconFollower : UdonSharpBehaviour
             }
             else
             {
-                Debug.LogError("[DEBUG] WARNING: No roleSprite provided, using fallback color");
                 iconSpriteRenderer.sprite = null;
                 iconSpriteRenderer.color = Color.red; // Color rojo para debug
             }
             iconSpriteRenderer.sortingOrder = 100;
             iconSpriteRenderer.enabled = true;
-            Debug.LogError($"[DEBUG] SpriteRenderer enabled: {iconSpriteRenderer.enabled}");
         }
 
         // Establecer escala
         cachedTransform.localScale = Vector3.one * iconScale;
-        Debug.LogError($"[DEBUG] Scale set to: {cachedTransform.localScale}");
 
         // POSICIONAR INMEDIATAMENTE
         if (targetPlayer != null && targetPlayer.IsValid())
@@ -140,13 +132,11 @@ public class IconFollower : UdonSharpBehaviour
             if (initialPos.magnitude > 0.1f)
             {
                 cachedTransform.position = initialPos;
-                Debug.LogError($"[DEBUG] Position set to HEAD: {cachedTransform.position}");
             }
             else
             {
                 // Respaldo con posición del jugador
                 cachedTransform.position = targetPlayer.GetPosition() + (Vector3.up * (heightOffset + 1.8f));
-                Debug.LogError($"[DEBUG] Position set to PLAYER: {cachedTransform.position}");
             }
 
             playerLocalRotation(localPlayer);
