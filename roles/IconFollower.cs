@@ -12,17 +12,31 @@ public class IconFollower : UdonSharpBehaviour
     [SerializeField] private float maxDistance = 50f;
     [SerializeField] private float iconScale = 0.3f;
     [SerializeField] private float heightOffset = 1f;
-    [SerializeField] private bool lockYAxis = true; // Mantener vertical
+    [SerializeField] private bool lockYAxis = true;
+    
+    // Optimización
+    [Header("Optimización")]
+    [SerializeField] private float distanceCheckInterval = 0.5f; // Revisar distancia cada 0.5 segundos
+    [SerializeField] private float rotationUpdateInterval = 0.033f; // ~30 FPS para rotación
 
     private VRCPlayerApi targetPlayer;
     private VRCPlayerApi localPlayer;
     private Transform cachedTransform;
-    private int visibilityCheckCounter = 0;
-    private bool isActive = false;
+    private GameObject cachedGameObject;
+    
+    // Control de tiempo para optimización
+    private float nextDistanceCheck = 0f;
+    private float nextRotationUpdate = 0f;
+    private float currentDistance = 0f;
+    private bool isWithinRange = false;
+    
+    // Estado
+    private bool isInitialized = false;
 
     void Start()
     {
         cachedTransform = transform;
+        cachedGameObject = gameObject;
         localPlayer = Networking.LocalPlayer;
 
         if (iconSpriteRenderer == null)
@@ -31,50 +45,128 @@ public class IconFollower : UdonSharpBehaviour
         if (iconSpriteRenderer != null)
         {
             iconSpriteRenderer.sortingOrder = 100;
-            iconSpriteRenderer.enabled = false;
         }
 
-        // Establecer escala fija
+        // Establecer escala
         cachedTransform.localScale = Vector3.one * iconScale;
     }
 
     void Update()
     {
-        // Si no está activo o no hay jugador, salir
-        if (!isActive || targetPlayer == null || !targetPlayer.IsValid())
+        // Validación rápida
+        if (!isInitialized || targetPlayer == null || !targetPlayer.IsValid())
         {
-            if (isActive && targetPlayer != null && !targetPlayer.IsValid())
+            if (isInitialized && (targetPlayer == null || !targetPlayer.IsValid()))
             {
-                // El jugador ya no es válido, desactivar
-                isActive = false;
-                if (iconSpriteRenderer != null)
-                    iconSpriteRenderer.enabled = false;
+                // Jugador desconectado - desactivar GameObject completo
+                DisableIcon();
             }
             return;
         }
 
-        // Posicionar el icono sobre la cabeza del jugador
-        Vector3 targetPos = getTargetPlayerPosition(targetPlayer);
+        // OPTIMIZACIÓN: Solo actualizar posición si estamos dentro del rango
+        if (isWithinRange)
+        {
+            // Actualizar posición cada frame (necesario para seguimiento suave)
+            UpdatePosition();
+            
+            // Actualizar rotación con menor frecuencia
+            if (Time.time >= nextRotationUpdate)
+            {
+                UpdateRotation();
+                nextRotationUpdate = Time.time + rotationUpdateInterval;
+            }
+        }
 
-        // Solo actualizar si la posición es válida
+        // Revisar distancia con menor frecuencia
+        if (Time.time >= nextDistanceCheck)
+        {
+            CheckDistanceAndToggle();
+            nextDistanceCheck = Time.time + distanceCheckInterval;
+        }
+    }
+
+    private void UpdatePosition()
+    {
+        Vector3 targetPos = GetTargetPlayerPosition();
         if (targetPos.magnitude > 0.1f)
         {
             cachedTransform.position = targetPos;
         }
+    }
 
-
-        playerLocalRotation(localPlayer);
-
-        // Visibilidad - Solo cada 15 frames para optimizar
-        visibilityCheckCounter++;
-        if (visibilityCheckCounter >= 15)
+    private void UpdateRotation()
+    {
+        if (localPlayer != null && localPlayer.IsValid())
         {
-            visibilityCheckCounter = 0;
-            if (localPlayer != null && iconSpriteRenderer != null)
+            VRCPlayerApi.TrackingData localHeadData = localPlayer.GetTrackingData(VRCPlayerApi.TrackingDataType.Head);
+            Quaternion playerHeadRotation = localHeadData.rotation;
+            Vector3 lookDirection = cachedTransform.position - localHeadData.position;
+
+            if (lockYAxis)
             {
-                float distance = Vector3.Distance(localPlayer.GetPosition(), cachedTransform.position);
-                iconSpriteRenderer.enabled = distance <= maxDistance && isActive;
+                lookDirection.y = 0;
+                Vector3 euler = playerHeadRotation.eulerAngles;
+                euler.x = 0;
+                euler.z = 0;
+                cachedTransform.rotation = Quaternion.Euler(euler);
             }
+            else if (lookDirection.magnitude > 0.01f)
+            {
+                cachedTransform.rotation = Quaternion.LookRotation(lookDirection);
+            }
+        }
+    }
+
+    private void CheckDistanceAndToggle()
+    {
+        if (localPlayer == null || !localPlayer.IsValid())
+        {
+            localPlayer = Networking.LocalPlayer;
+            if (localPlayer == null) return;
+        }
+
+        // Calcular distancia
+        currentDistance = Vector3.Distance(localPlayer.GetPosition(), GetTargetPlayerPosition());
+        bool shouldBeActive = currentDistance <= maxDistance;
+
+        // Si el estado cambió, actualizar
+        if (shouldBeActive != isWithinRange)
+        {
+            isWithinRange = shouldBeActive;
+            
+            if (isWithinRange)
+            {
+                EnableIcon();
+            }
+            else
+            {
+                DisableIcon();
+            }
+        }
+    }
+
+    private void EnableIcon()
+    {
+        // Activar solo el SpriteRenderer, no todo el GameObject
+        // Esto permite que Update siga funcionando para detectar cuando volver a activar
+        if (iconSpriteRenderer != null)
+        {
+            iconSpriteRenderer.enabled = true;
+        }
+        
+        // Actualizar posición inmediatamente al activar
+        UpdatePosition();
+        UpdateRotation();
+    }
+
+    private void DisableIcon()
+    {
+        // Solo desactivar el renderer, no el GameObject
+        // Esto es más eficiente que desactivar todo el GameObject
+        if (iconSpriteRenderer != null)
+        {
+            iconSpriteRenderer.enabled = false;
         }
     }
 
@@ -83,9 +175,12 @@ public class IconFollower : UdonSharpBehaviour
         Debug.Log($"[IconFollower] SetupIcon llamado para {player.displayName}");
 
         targetPlayer = player;
-
+        
         if (cachedTransform == null)
             cachedTransform = transform;
+        
+        if (cachedGameObject == null)
+            cachedGameObject = gameObject;
 
         if (localPlayer == null)
             localPlayer = Networking.LocalPlayer;
@@ -101,97 +196,76 @@ public class IconFollower : UdonSharpBehaviour
                 iconSpriteRenderer.sprite = roleSprite;
                 iconSpriteRenderer.color = Color.white;
 
-                // Voltear sprite si es el jugador local
-                if (targetPlayer == localPlayer)
-                {
-                    iconSpriteRenderer.flipX = true;
-                }
-                else
-                {
-                    iconSpriteRenderer.flipX = false;
-                }
+                // Auto-flip basado en si es el jugador local
+                iconSpriteRenderer.flipX = (targetPlayer == localPlayer);
             }
             else
             {
+                // Fallback para debug
                 iconSpriteRenderer.sprite = null;
-                iconSpriteRenderer.color = Color.red; // Color rojo para debug
+                iconSpriteRenderer.color = Color.red;
             }
+            
             iconSpriteRenderer.sortingOrder = 100;
-            iconSpriteRenderer.enabled = true;
         }
 
         // Establecer escala
         cachedTransform.localScale = Vector3.one * iconScale;
 
-        // POSICIONAR INMEDIATAMENTE
+        // Posicionar inmediatamente
         if (targetPlayer != null && targetPlayer.IsValid())
         {
-            Vector3 initialPos = getTargetPlayerPosition(targetPlayer);
-
-            // Si la posición es válida, usarla
+            Vector3 initialPos = GetTargetPlayerPosition();
             if (initialPos.magnitude > 0.1f)
             {
                 cachedTransform.position = initialPos;
             }
             else
             {
-                // Respaldo con posición del jugador
                 cachedTransform.position = targetPlayer.GetPosition() + (Vector3.up * (heightOffset + 1.8f));
             }
 
-            playerLocalRotation(localPlayer);
-
+            UpdateRotation();
             Debug.Log($"[IconFollower] Posición inicial establecida en {cachedTransform.position}");
         }
 
-        // Activar el seguimiento
-        isActive = true;
+        // Marcar como inicializado
+        isInitialized = true;
+        
+        // Hacer check inicial de distancia
+        CheckDistanceAndToggle();
+        
         Debug.Log($"[IconFollower] Icon activado para {player.displayName}");
     }
 
-    private Vector3 getTargetPlayerPosition(VRCPlayerApi targetPlayer)
+    private Vector3 GetTargetPlayerPosition()
     {
+        if (targetPlayer == null || !targetPlayer.IsValid())
+            return Vector3.zero;
+            
         VRCPlayerApi.TrackingData headData = targetPlayer.GetTrackingData(VRCPlayerApi.TrackingDataType.Head);
-        Vector3 targetPos = headData.position + (Vector3.up * heightOffset);
-
-        return targetPos;
+        return headData.position + (Vector3.up * heightOffset);
     }
 
-    private void playerLocalRotation(VRCPlayerApi localPlayer)
+    public void CleanupIcon()
     {
-        if (localPlayer != null && localPlayer.IsValid())
-        {
-            VRCPlayerApi.TrackingData localHeadData = localPlayer.GetTrackingData(VRCPlayerApi.TrackingDataType.Head);
-            Quaternion playerHeadRotation = localHeadData.rotation;
-            // El icono debe mirar hacia la cámara
-            Vector3 lookDirection = cachedTransform.position - localHeadData.position;
-
-            // Si lockYAxis está activado, mantener el icono vertical
-            if (lockYAxis)
-            {
-                lookDirection.y = 0;
-
-                Vector3 euler = playerHeadRotation.eulerAngles;
-                euler.x = 0; // Anula la inclinación adelante/atrás
-                euler.z = 0; // Anula la inclinación lateral
-                cachedTransform.rotation = Quaternion.Euler(euler);
-            }
-            else if (lookDirection.magnitude > 0.01f) {
-               // Solo rotar si hay una dirección válida
-               // Rotar para mirar hacia la cámara
-                cachedTransform.rotation = Quaternion.LookRotation(lookDirection);
-            }
-
-        }
+        isInitialized = false;
+        targetPlayer = null;
+        DisableIcon();
     }
 
     public bool IsActive()
     {
-        return isActive;
+        return isInitialized && isWithinRange;
     }
 
     public VRCPlayerApi GetTargetPlayer()
     {
         return targetPlayer;
+    }
+    
+    public float GetCurrentDistance()
+    {
+        return currentDistance;
     }
 }
