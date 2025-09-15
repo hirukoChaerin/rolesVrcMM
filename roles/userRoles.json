@@ -1,0 +1,72 @@
+{
+  "version": "1.0.0",
+  "lastUpdated": "2025-09-11T15:30:00Z",
+  "roles": {
+    "leader": {
+      "priority": 100,
+      "users": [
+        "BlauThemce"
+      ]
+    },
+    "secretaries": {
+      "priority": 90,
+      "users": [
+        "SerlesThemce",
+        "Mαятιи_MxVr"
+      ]
+    },
+    "maids": {
+      "priority": 80,
+      "users": [
+        "Hana Rose",
+        "XMascaritaX",
+        "Lanita_UwUr",
+        "MeyLunaVT",
+        "Ovelisk",
+        "pixel sakura",
+        "kαɾi",
+        "anushka_lu",
+        "Yuk0_chan",
+        "クロエChloe",
+        "Lily_usagi",
+        "SlimyBury",
+        "kiritovskirito"
+      ]
+    },
+    "butlers": {
+      "priority": 79,
+      "users": [
+        "Terry_x",
+        "Raiko01",
+        "Vash Solarveil",
+        "Bely Kōtei",
+        "BloodyRoseGTR",
+        "Diego21",
+        "zgarrex",
+        "Grimm_Reap",
+        "MEGUWII",
+        "wilkun001",
+        "Dan Kisaragi",
+        "Desotto",
+        "DragonSlayerFT1",
+        "-Kamiii-"
+      ]
+    },
+    "guards": {
+      "priority": 70,
+      "users": [
+        "Ozma猫",
+        "ㄚ ㄖ 尺 ㄩ - 暗い"
+      ]
+    },
+    "collaborators": {
+      "priority": 60,
+      "users": [
+        "〨༒ Milanesa ༒〨",
+        "faunotears",
+        "Beiker07",
+        "Chaerin-チャエリン"
+      ]
+    }
+  }
+}
