@@ -8,40 +8,40 @@ using VRC.Udon.Common.Interfaces;
 [UdonBehaviourSyncMode(BehaviourSyncMode.None)]
 public class UserIconManager : UdonSharpBehaviour
 {
-    [Header("Configuración")]
+    [Header("Configuration")]
     [SerializeField] private VRCUrl rolesJsonUrl;
     [SerializeField] private GameObject iconPrefab;
     [SerializeField] private float updateInterval = 60f;
     
-    [Header("Sprites de Roles")]
+    [Header("Role Sprites")]
     [SerializeField] private Sprite[] roleSprites;
     [SerializeField] private string[] roleNames;
     
-    [Header("Optimización")]
-    [SerializeField] private int maxIconPool = 20; // Pool máximo de iconos activos
-    [SerializeField] private bool useBatchedUpdates = true; // Actualizar jugadores en lotes
-    [SerializeField] private int playersPerBatch = 10; // Jugadores por lote
+    [Header("Optimization")]
+    [SerializeField] private int maxIconPool = 20; // Maximum active icon pool
+    [SerializeField] private bool useBatchedUpdates = true; // Update players in batches
+    [SerializeField] private int playersPerBatch = 10; // Players per batch
     
     [Header("Debug")]
     [SerializeField] private bool enableDebugLogs = false;
     
-    // Datos de roles cargados del JSON
+    // Role data loaded from JSON
     private DataDictionary rolesData;
     private DataDictionary userRoleMap;
     
-    // Gestión de iconos con pooling
+    // Icon management with pooling
     private DataDictionary activeIcons; // playerId -> GameObject
-    private GameObject[] iconPool; // Pool de iconos reutilizables
-    private int[] poolInUse; // Estado del pool (0=libre, 1=en uso)
+    private GameObject[] iconPool; // Reusable icon pool
+    private int[] poolInUse; // Pool state (0=free, 1=in use)
     private int poolSize = 0;
     
-    // Control de tiempo y batching
+    // Timing and batching control
     private float nextUpdateTime;
     private float nextJsonUpdateTime;
     private const float JSON_UPDATE_INTERVAL = 300f;
     private int currentBatchIndex = 0;
     
-    // Cache de jugadores
+    // Player cache
     private VRCPlayerApi[] playerCache;
     private int playerCount = 0;
     
@@ -108,16 +108,16 @@ public class UserIconManager : UdonSharpBehaviour
         }
     }
     
-    // OPTIMIZACIÓN: Actualizar jugadores en lotes para distribuir la carga
+    // OPTIMIZATION: Update players in batches to distribute the load
     private void UpdatePlayerIconsBatched()
     {
         if (rolesData == null) return;
         
-        // Obtener jugadores actuales
+        // Get current players
         playerCache = VRCPlayerApi.GetPlayers(playerCache);
         playerCount = 0;
         
-        // Contar jugadores válidos
+        // Count valid players
         foreach (VRCPlayerApi player in playerCache)
         {
             if (player != null && player.IsValid())
@@ -128,7 +128,7 @@ public class UserIconManager : UdonSharpBehaviour
         
         if (playerCount == 0) return;
         
-        // Procesar un lote de jugadores
+        // Process a batch of players
         int startIndex = currentBatchIndex;
         int endIndex = Mathf.Min(currentBatchIndex + playersPerBatch, playerCount);
         
@@ -140,7 +140,7 @@ public class UserIconManager : UdonSharpBehaviour
             }
         }
         
-        // Avanzar al siguiente lote
+        // Advance to the next batch
         currentBatchIndex += playersPerBatch;
         if (currentBatchIndex >= playerCount)
         {
@@ -154,7 +154,7 @@ public class UserIconManager : UdonSharpBehaviour
         if (rolesJsonUrl != null)
         {
             VRCStringDownloader.LoadUrl(rolesJsonUrl, (IUdonEventReceiver)this);
-            DebugLog("Cargando datos de roles desde JSON...");
+            DebugLog("Loading role data from JSON...");
         }
     }
     
@@ -162,7 +162,7 @@ public class UserIconManager : UdonSharpBehaviour
     {
         if (!VRCJson.TryDeserializeFromJson(result.Result, out DataToken jsonResult))
         {
-            DebugLog("Error al parsear JSON");
+            DebugLog("Error parsing JSON");
             return;
         }
         
@@ -176,13 +176,13 @@ public class UserIconManager : UdonSharpBehaviour
         rolesData = rolesToken.DataDictionary;
         ProcessRolesData();
         
-        DebugLog($"Roles cargados: {rolesData.Count}");
+        DebugLog($"Roles loaded: {rolesData.Count}");
         UpdatePlayerIcons();
     }
     
     public override void OnStringLoadError(IVRCStringDownload result)
     {
-        DebugLog($"Error cargando JSON: {result.Error}");
+        DebugLog($"Error loading JSON: {result.Error}");
     }
     
     private void ProcessRolesData()
@@ -222,7 +222,7 @@ public class UserIconManager : UdonSharpBehaviour
             }
         }
         
-        DebugLog($"Usuarios procesados: {userRoleMap.Count}");
+        DebugLog($"Users processed: {userRoleMap.Count}");
     }
     
     private int GetRolePriority(DataDictionary roleDict)
@@ -275,17 +275,17 @@ public class UserIconManager : UdonSharpBehaviour
         if (userRoleMap.TryGetValue(playerName, out DataToken roleToken))
             roleName = roleToken.String;
         
-        // Si no tiene rol, eliminar icono si existe
+        // If it doesn't have a role, remove the icon if it exists.
         if (string.IsNullOrEmpty(roleName))
         {
             RemovePlayerIcon(playerId);
             return;
         }
         
-        // Si ya tiene icono, verificar que sigue siendo válido
+        // If it already has an icon, verify that it is still valid.
         if (activeIcons.ContainsKey(playerId))
         {
-            // Verificar que el GameObject sigue existiendo
+            // Verify that the GameObject still exists
             DataToken iconToken = activeIcons[playerId];
             GameObject icon = (GameObject)iconToken.Reference;
             if (icon == null)
@@ -294,11 +294,11 @@ public class UserIconManager : UdonSharpBehaviour
             }
             else
             {
-                return; // Ya tiene icono válido
+                return;
             }
         }
         
-        // Crear o reutilizar icono del pool
+        // Create or reuse pool icon
         CreateOrReuseIcon(player, roleName);
     }
     
@@ -309,7 +309,7 @@ public class UserIconManager : UdonSharpBehaviour
         Sprite roleSprite = GetRoleSprite(roleName);
         if (roleSprite == null)
         {
-            DebugLog($"No se encontró sprite para el rol: {roleName}");
+            DebugLog($"No sprite found for role: {roleName}");
             return;
         }
         
@@ -317,14 +317,14 @@ public class UserIconManager : UdonSharpBehaviour
         
         if (icon == null)
         {
-            // Si no hay iconos disponibles en el pool y no hemos alcanzado el máximo
+            // If there are no icons available in the pool and we haven't reached the maximum.
             if (poolSize < maxIconPool)
             {
                 icon = CreateNewIcon();
             }
             else
             {
-                DebugLog("Pool de iconos lleno, no se puede crear más");
+                DebugLog("Icon pool is full, no more can be created");
                 return;
             }
         }
@@ -340,13 +340,13 @@ public class UserIconManager : UdonSharpBehaviour
         }
         else
         {
-            DebugLog("No se encontró componente IconFollower");
+            DebugLog("IconFollower component not found");
             return;
         }
         
         // Registrar icono activo
         activeIcons[player.playerId.ToString()] = icon;
-        DebugLog($"Icono asignado para {player.displayName} ({roleName})");
+        DebugLog($"Icon assigned to {player.displayName} ({roleName})");
     }
     
     private GameObject GetIconFromPool()
@@ -372,7 +372,7 @@ public class UserIconManager : UdonSharpBehaviour
             iconPool[poolSize] = newIcon;
             poolInUse[poolSize] = 1;
             poolSize++;
-            newIcon.SetActive(false); // Empezar desactivado
+            newIcon.SetActive(false);
             return newIcon;
         }
         
@@ -383,14 +383,13 @@ public class UserIconManager : UdonSharpBehaviour
     {
         if (icon == null) return;
         
-        // Limpiar el icono
+        // Clear the icon
         IconFollower follower = icon.GetComponent<IconFollower>();
         if (follower != null)
         {
             follower.CleanupIcon();
         }
         
-        // Desactivar y marcar como disponible
         icon.SetActive(false);
         
         for (int i = 0; i < poolSize; i++)
@@ -470,7 +469,7 @@ public class UserIconManager : UdonSharpBehaviour
     {
         SendCustomEventDelayedSeconds(nameof(UpdateSinglePlayer), 2f);
         lastJoinedPlayer = player;
-        DebugLog($"Jugador unido: {player.displayName}");
+        DebugLog($"Player joined: {player.displayName}");
     }
     
     private VRCPlayerApi lastJoinedPlayer;
@@ -486,7 +485,7 @@ public class UserIconManager : UdonSharpBehaviour
     public override void OnPlayerLeft(VRCPlayerApi player)
     {
         RemovePlayerIcon(player.playerId.ToString());
-        DebugLog($"Jugador salió: {player.displayName}");
+        DebugLog($"Player left: {player.displayName}");
     }
     
     private void DebugLog(string message)
