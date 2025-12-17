@@ -13,7 +13,7 @@ public class UserIconManager : UdonSharpBehaviour
     [SerializeField] private GameObject iconPrefab;
     [SerializeField] private float updateInterval = 60f;
     
-    [Header("Role Sprites")]
+    [Header("Roles")]
     [SerializeField] private Sprite[] roleSprites;
     [SerializeField] private string[] roleNames;
     
